@@ -1,15 +1,20 @@
-use std::{
-    thread::current,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 use eframe::{
-    egui::{self, Button, RichText},
+    egui::{self, Button, RichText, ViewportBuilder},
     epaint::Color32,
 };
 
 fn main() {
-    let native_options = eframe::NativeOptions::default();
+    let viewport_builder = ViewportBuilder::default()
+        .with_resizable(false)
+        .with_inner_size((300.0, 400.0))
+        .with_position((0.0, 0.0));
+
+    let native_options = eframe::NativeOptions {
+        viewport: viewport_builder,
+        ..eframe::NativeOptions::default()
+    };
     eframe::run_native(
         "CrabSplit",
         native_options,
