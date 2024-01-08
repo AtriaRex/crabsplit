@@ -1,11 +1,17 @@
 #![windows_subsystem = "windows"]
 
-use std::time::{Duration, Instant, SystemTime};
+use std::{
+    fmt::Display,
+    str::FromStr,
+    time::{Duration, SystemTime},
+};
 
+use chrono::{DateTime, Timelike};
 use eframe::{
     egui::{self, Button, RichText, ViewportBuilder},
     epaint::Color32,
 };
+use tzfile::RcTz;
 
 fn main() {
     let viewport_builder = ViewportBuilder::default()
@@ -29,6 +35,40 @@ struct TaskProgress {
     pub start: SystemTime,
     pub end: SystemTime,
 }
+
+fn to_datetime(system_time: SystemTime) -> DateTime<RcTz> {
+    let timestamp = system_time
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
+    let tz: RcTz = RcTz::named("Europe/Istanbul").unwrap();
+    let datetime = DateTime::from_timestamp(timestamp.try_into().unwrap(), 0)
+        .unwrap()
+        .with_timezone(&tz);
+
+    datetime
+}
+
+impl Display for TaskProgress {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let start = to_datetime(self.start);
+        let end = to_datetime(self.end);
+
+        write!(
+            f,
+            "{}:{} - {}:{}",
+            start.hour(),
+            start.minute(),
+            end.hour(),
+            end.minute()
+        )
+    }
+}
+
+// impl FromStr for TaskProgress {
+//     fn from_str(s: &str) -> Result<Self, Self::Err> {}
+// }
 
 struct Task {
     name: String,
