@@ -1,4 +1,6 @@
-use std::time::{Duration, Instant};
+#![windows_subsystem = "windows"]
+
+use std::time::{Duration, Instant, SystemTime};
 
 use eframe::{
     egui::{self, Button, RichText, ViewportBuilder},
@@ -23,10 +25,15 @@ fn main() {
     .unwrap();
 }
 
+struct TaskProgress {
+    pub start: SystemTime,
+    pub end: SystemTime,
+}
+
 struct Task {
     name: String,
-    duration: Duration,
-    started_at: Option<Instant>,
+    progress: Vec<TaskProgress>,
+    started_at: Option<SystemTime>,
 }
 
 #[derive(Default)]
@@ -55,7 +62,7 @@ impl CrabSplit {
         if self.task_name.len() > 0 {
             let task = Task {
                 name: self.task_name.clone(),
-                duration: Duration::new(0, 0),
+                progress: Vec::with_capacity(10),
                 started_at: None,
             };
             self.tasks.push(task);
@@ -69,19 +76,18 @@ impl CrabSplit {
 
     fn start(&mut self) {
         self.running = true;
-        self.tasks[self.current_task].started_at = Some(Instant::now());
+        self.tasks[self.current_task].started_at = Some(SystemTime::now());
     }
 
     fn stop(&mut self) {
         self.running = false;
-        let now = Instant::now();
-        let elapsed = now
-            - self.tasks[self.current_task]
-                .started_at
-                .expect("This has to be Some because it is currently running");
-
+        let task = &self.tasks[self.current_task];
+        let task_progress = TaskProgress {
+            start: task.started_at.unwrap(),
+            end: SystemTime::now(),
+        };
         self.tasks[self.current_task].started_at = None;
-        self.tasks[self.current_task].duration += elapsed;
+        self.tasks[self.current_task].progress.push(task_progress);
     }
 
     fn start_enabled(&self) -> bool {
@@ -96,21 +102,30 @@ impl CrabSplit {
         self.running == false && self.tasks.len() > 0 && self.current_task < self.tasks.len() - 1
     }
 
-    fn calculate_total_time(&self) -> String {
+    fn calculate_task_elapsed(task: &Task) -> Duration {
         let mut total = Duration::new(0, 0);
-        for task in &self.tasks {
-            total += task.duration;
+        for progress in &task.progress {
+            let duration = progress.end.duration_since(progress.start).unwrap();
+            total += duration;
         }
 
-        if self.running {
-            let current_task = &self.tasks[self.current_task];
-
-            let now = Instant::now();
-            let elapsed = now - current_task.started_at.unwrap();
+        if let Some(started_at) = task.started_at {
+            let now = SystemTime::now();
+            let elapsed = now.duration_since(started_at).unwrap();
             total += elapsed;
         }
 
-        format!("{:?}", total)
+        total
+    }
+
+    fn calculate_total_elapsed(&self) -> Duration {
+        let mut total = Duration::new(0, 0);
+
+        for task in &self.tasks {
+            total += Self::calculate_task_elapsed(task);
+        }
+
+        total
     }
 }
 
@@ -119,17 +134,12 @@ impl eframe::App for CrabSplit {
         ctx.request_repaint();
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.label(self.calculate_total_time());
+            ui.label(format!("{:?}", self.calculate_total_elapsed()));
 
             ui.vertical(|ui| {
                 for (idx, task) in self.tasks.iter().enumerate() {
-                    let text = if let Some(started_at) = task.started_at {
-                        let now = Instant::now();
-                        let elapsed = now - started_at;
-                        format!("{} - {:?}", task.name, task.duration + elapsed)
-                    } else {
-                        format!("{} - {:?}", task.name, task.duration)
-                    };
+                    let task_duration = Self::calculate_task_elapsed(task);
+                    let text = format!("{} - {:?}", task.name, task_duration);
 
                     if idx == self.current_task {
                         ui.label(RichText::new(text).color(Color32::from_rgb(0, 255, 0)));
