@@ -2,16 +2,21 @@
 
 use std::{
     fmt::Display,
+    fs::{File, OpenOptions},
     str::FromStr,
     time::{Duration, SystemTime},
 };
 
-use chrono::{DateTime, Timelike};
+use std::io::Write;
+
+use chrono::{DateTime, Datelike, Timelike, Utc};
 use eframe::{
     egui::{self, Button, RichText, ViewportBuilder},
     epaint::Color32,
 };
 use tzfile::RcTz;
+
+const PATH: &'static str = "/home/emre/crabsplit";
 
 fn main() {
     let viewport_builder = ViewportBuilder::default()
@@ -63,6 +68,21 @@ impl Display for TaskProgress {
             end.hour(),
             end.minute()
         )
+    }
+}
+
+impl Display for Task {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "{}", self.name)?;
+        for (idx, progress) in self.progress.iter().enumerate() {
+            if idx == self.progress.len() {
+                write!(f, "  {}", progress)?;
+            } else {
+                writeln!(f, "  {}", progress)?;
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -169,9 +189,31 @@ impl CrabSplit {
     }
 }
 
+fn record_today(tasks: &Vec<Task>) {
+    let tz: RcTz = RcTz::named("Europe/Istanbul").unwrap();
+    let today = Utc::now().with_timezone(&tz);
+    let filename = format!("{}-{}-{}", today.day(), today.month(), today.year());
+
+    let mut file = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .append(true)
+        .open(format!("{PATH}/{filename}"))
+        .unwrap();
+
+    for task in tasks {
+        writeln!(file, "{}", task).unwrap();
+    }
+}
+
 impl eframe::App for CrabSplit {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         ctx.request_repaint();
+
+        if ctx.input(|i| i.viewport().close_requested()) {
+            // write tasks to file and close
+            record_today(&self.tasks)
+        }
 
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.label(format!("{:?}", self.calculate_total_elapsed()));
