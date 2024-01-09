@@ -2,21 +2,24 @@
 
 use std::{
     fmt::Display,
-    fs::{File, OpenOptions},
+    fs::{self, File, OpenOptions},
     str::FromStr,
     time::{Duration, SystemTime},
 };
 
 use std::io::Write;
 
-use chrono::{DateTime, Datelike, Timelike, Utc};
+use chrono::{Date, DateTime, Datelike, TimeZone, Timelike, Utc};
 use eframe::{
     egui::{self, Button, RichText, ViewportBuilder},
     epaint::Color32,
 };
 use tzfile::RcTz;
 
-const PATH: &'static str = "/home/emre/crabsplit";
+#[cfg(target_os = "linux")]
+const DEFAULT_PATH: &'static str = "/home/emre/crabsplit";
+#[cfg(target_os = "windows")]
+static DEFAULT_PATH: &'static str = "C:/Users/aliem";
 
 fn main() {
     let viewport_builder = ViewportBuilder::default()
@@ -28,10 +31,12 @@ fn main() {
         viewport: viewport_builder,
         ..eframe::NativeOptions::default()
     };
+
+    let tasks = read_today();
     eframe::run_native(
         "CrabSplit",
         native_options,
-        Box::new(|cc| Box::new(CrabSplit::new(cc))),
+        Box::new(|cc| Box::new(CrabSplit::new(cc, tasks))),
     )
     .unwrap();
 }
@@ -105,16 +110,25 @@ struct CrabSplit {
 }
 
 impl CrabSplit {
-    fn new(cc: &eframe::CreationContext<'_>) -> Self {
+    fn new(cc: &eframe::CreationContext<'_>, tasks: Option<Vec<Task>>) -> Self {
         // Customize egui here with cc.egui_ctx.set_fonts and cc.egui_ctx.set_visuals.
         // Restore app state using cc.storage (requires the "persistence" feature).
         // Use the cc.gl (a glow::Context) to create graphics shaders and buffers that you can use
         // for e.g. egui::PaintCallback.
-        Self {
-            current_task: 0,
-            task_name: "".to_string(),
-            tasks: Vec::with_capacity(10),
-            running: false,
+        if let Some(tasks) = tasks {
+            Self {
+                current_task: 0,
+                task_name: "".to_string(),
+                running: false,
+                tasks,
+            }
+        } else {
+            Self {
+                current_task: 0,
+                task_name: "".to_string(),
+                running: false,
+                tasks: Vec::with_capacity(10),
+            }
         }
     }
 
@@ -198,12 +212,77 @@ fn record_today(tasks: &Vec<Task>) {
         .create(true)
         .write(true)
         .append(true)
-        .open(format!("{PATH}/{filename}"))
+        .open(format!("{DEFAULT_PATH}/{filename}"))
         .unwrap();
 
     for task in tasks {
         writeln!(file, "{}", task).unwrap();
     }
+}
+
+fn read_today() -> Option<Vec<Task>> {
+    let tz: RcTz = RcTz::named("Europe/Istanbul").unwrap();
+    let today = Utc::now().with_timezone(&tz);
+    let filename = format!("{}-{}-{}", today.day(), today.month(), today.year());
+
+    let file = fs::read_to_string(format!("{DEFAULT_PATH}/{filename}"));
+
+    match file {
+        Ok(file) => Some(parse_file(file)),
+        Err(e) => None,
+    }
+}
+
+fn parse_file(file: String) -> Vec<Task> {
+    let tz: RcTz = RcTz::named("Europe/Istanbul").unwrap();
+
+    let mut result = Vec::new();
+    for line in file.lines() {
+        if line.len() > 0 {
+            if line.starts_with("  ") {
+                // this is a progress line
+                let last_task: &mut Task = result
+                    .last_mut()
+                    .expect("We must have a last_task if we see a progress line");
+                let times: Vec<_> = line.split(" - ").collect();
+                let start_str: Vec<_> = times[0].split(":").collect();
+                let end_str: Vec<_> = times[1].split(":").collect();
+
+                let start_hour = start_str[0].parse::<u32>().unwrap();
+                let start_minute = start_str[1].parse::<u32>().unwrap();
+                let end_hour = end_str[0].parse::<u32>().unwrap();
+                let end_minute = end_str[1].parse::<u32>().unwrap();
+
+                let start = Utc::now()
+                    .with_timezone(&tz)
+                    .with_hour(start_hour)
+                    .unwrap()
+                    .with_minute(start_minute)
+                    .unwrap();
+                let end = Utc::now()
+                    .with_timezone(&tz)
+                    .with_hour(end_hour)
+                    .unwrap()
+                    .with_minute(end_minute)
+                    .unwrap();
+
+                last_task.progress.push(TaskProgress {
+                    start: start.into(),
+                    end: end.into(),
+                });
+            } else {
+                // this is a task name line
+                let task = Task {
+                    name: line.to_string(),
+                    progress: Vec::new(),
+                    started_at: None,
+                };
+                result.push(task);
+            }
+        }
+    }
+
+    result
 }
 
 impl eframe::App for CrabSplit {
