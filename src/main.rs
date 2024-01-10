@@ -279,12 +279,21 @@ impl eframe::App for CrabSplit {
                     let text = format!("{} - {}", task.name, format_duration(&task_duration));
 
                     if idx == self.current_task {
-                        ui.horizontal(|ui| {
-                            ui.label(RichText::new(text).color(Color32::from_rgb(0, 255, 0)));
-                            if ui.button("X").clicked() {
-                                task_to_remove = Some(idx);
-                            }
-                        });
+                        if self.running {
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new(text).color(Color32::from_rgb(255, 0, 0)));
+                                if ui.button("X").clicked() {
+                                    task_to_remove = Some(idx);
+                                }
+                            });
+                        } else {
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new(text).color(Color32::from_rgb(0, 255, 0)));
+                                if ui.button("X").clicked() {
+                                    task_to_remove = Some(idx);
+                                }
+                            });
+                        }
                     } else {
                         ui.horizontal(|ui| {
                             ui.label(RichText::new(text).color(Color32::from_rgb(255, 255, 255)));
