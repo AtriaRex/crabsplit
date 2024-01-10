@@ -14,6 +14,7 @@ use eframe::{
     egui::{self, Button, RichText, ViewportBuilder},
     epaint::Color32,
 };
+use serde::{Deserialize, Serialize};
 use tzfile::RcTz;
 
 #[cfg(target_os = "linux")]
@@ -41,6 +42,7 @@ fn main() {
     .unwrap();
 }
 
+#[derive(Serialize, Deserialize)]
 struct TaskProgress {
     pub start: SystemTime,
     pub end: SystemTime,
@@ -95,6 +97,7 @@ impl Display for Task {
 //     fn from_str(s: &str) -> Result<Self, Self::Err> {}
 // }
 
+#[derive(Serialize, Deserialize)]
 struct Task {
     name: String,
     progress: Vec<TaskProgress>,
@@ -208,16 +211,15 @@ fn record_today(tasks: &Vec<Task>) {
     let today = Utc::now().with_timezone(&tz);
     let filename = format!("{}-{}-{}", today.day(), today.month(), today.year());
 
+    let tasks_str = serde_json::to_string(tasks).unwrap();
+
     let mut file = OpenOptions::new()
         .create(true)
         .write(true)
-        .append(true)
         .open(format!("{DEFAULT_PATH}/{filename}"))
         .unwrap();
 
-    for task in tasks {
-        writeln!(file, "{}", task).unwrap();
-    }
+    writeln!(file, "{}", tasks_str).unwrap();
 }
 
 fn read_today() -> Option<Vec<Task>> {
@@ -228,61 +230,9 @@ fn read_today() -> Option<Vec<Task>> {
     let file = fs::read_to_string(format!("{DEFAULT_PATH}/{filename}"));
 
     match file {
-        Ok(file) => Some(parse_file(file)),
+        Ok(file) => Some(serde_json::from_str(&file).unwrap()),
         Err(e) => None,
     }
-}
-
-fn parse_file(file: String) -> Vec<Task> {
-    let tz: RcTz = RcTz::named("Europe/Istanbul").unwrap();
-
-    let mut result = Vec::new();
-    for line in file.lines() {
-        if line.len() > 0 {
-            if line.starts_with("  ") {
-                // this is a progress line
-                let last_task: &mut Task = result
-                    .last_mut()
-                    .expect("We must have a last_task if we see a progress line");
-                let times: Vec<_> = line.split(" - ").collect();
-                let start_str: Vec<_> = times[0].split(":").collect();
-                let end_str: Vec<_> = times[1].split(":").collect();
-
-                let start_hour = start_str[0].parse::<u32>().unwrap();
-                let start_minute = start_str[1].parse::<u32>().unwrap();
-                let end_hour = end_str[0].parse::<u32>().unwrap();
-                let end_minute = end_str[1].parse::<u32>().unwrap();
-
-                let start = Utc::now()
-                    .with_timezone(&tz)
-                    .with_hour(start_hour)
-                    .unwrap()
-                    .with_minute(start_minute)
-                    .unwrap();
-                let end = Utc::now()
-                    .with_timezone(&tz)
-                    .with_hour(end_hour)
-                    .unwrap()
-                    .with_minute(end_minute)
-                    .unwrap();
-
-                last_task.progress.push(TaskProgress {
-                    start: start.into(),
-                    end: end.into(),
-                });
-            } else {
-                // this is a task name line
-                let task = Task {
-                    name: line.to_string(),
-                    progress: Vec::new(),
-                    started_at: None,
-                };
-                result.push(task);
-            }
-        }
-    }
-
-    result
 }
 
 impl eframe::App for CrabSplit {
