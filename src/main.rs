@@ -33,11 +33,14 @@ fn main() {
         ..eframe::NativeOptions::default()
     };
 
-    let tasks = read_today();
+    let today = Utc::now().with_timezone(&Istanbul);
+    let filename = format!("{}-{}-{}", today.day(), today.month(), today.year());
+    let tasks = read_today(&filename);
+
     eframe::run_native(
         "CrabSplit",
         native_options,
-        Box::new(|cc| Box::new(CrabSplit::new(cc, tasks))),
+        Box::new(|cc| Box::new(CrabSplit::new(cc, tasks, filename))),
     )
     .unwrap();
 }
@@ -109,20 +112,23 @@ struct CrabSplit {
     task_name: String,
     tasks: Vec<Task>,
     running: bool,
+    filename: String,
 }
 
 impl CrabSplit {
-    fn new(cc: &eframe::CreationContext<'_>, tasks: Option<Vec<Task>>) -> Self {
+    fn new(cc: &eframe::CreationContext<'_>, tasks: Option<Vec<Task>>, filename: String) -> Self {
         // Customize egui here with cc.egui_ctx.set_fonts and cc.egui_ctx.set_visuals.
         // Restore app state using cc.storage (requires the "persistence" feature).
         // Use the cc.gl (a glow::Context) to create graphics shaders and buffers that you can use
         // for e.g. egui::PaintCallback.
+
         if let Some(tasks) = tasks {
             Self {
                 current_task: 0,
                 task_name: "".to_string(),
                 running: false,
                 tasks,
+                filename,
             }
         } else {
             Self {
@@ -130,6 +136,7 @@ impl CrabSplit {
                 task_name: "".to_string(),
                 running: false,
                 tasks: Vec::with_capacity(10),
+                filename,
             }
         }
     }
@@ -212,6 +219,29 @@ impl CrabSplit {
 
         total
     }
+
+    fn record_today(&self) {
+        let tasks_str = serde_json::to_string(&self.tasks).unwrap();
+        let filename = &self.filename;
+
+        let mut file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(format!("{DEFAULT_PATH}/{filename}"))
+            .unwrap();
+
+        writeln!(file, "{}", tasks_str).unwrap();
+    }
+}
+
+fn read_today(filename: &str) -> Option<Vec<Task>> {
+    let file = fs::read_to_string(format!("{DEFAULT_PATH}/{filename}"));
+
+    match file {
+        Ok(file) => Some(serde_json::from_str(&file).unwrap()),
+        Err(e) => None,
+    }
 }
 
 fn format_duration(duration: &Duration) -> String {
@@ -221,34 +251,6 @@ fn format_duration(duration: &Duration) -> String {
     let seconds = total_seconds % 60;
 
     format!("{}:{}", full_minutes, seconds)
-}
-
-fn record_today(tasks: &Vec<Task>) {
-    let today = Utc::now().with_timezone(&Istanbul);
-    let filename = format!("{}-{}-{}", today.day(), today.month(), today.year());
-
-    let tasks_str = serde_json::to_string(tasks).unwrap();
-
-    let mut file = OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(true)
-        .open(format!("{DEFAULT_PATH}/{filename}"))
-        .unwrap();
-
-    writeln!(file, "{}", tasks_str).unwrap();
-}
-
-fn read_today() -> Option<Vec<Task>> {
-    let today = Utc::now().with_timezone(&Istanbul);
-    let filename = format!("{}-{}-{}", today.day(), today.month(), today.year());
-
-    let file = fs::read_to_string(format!("{DEFAULT_PATH}/{filename}"));
-
-    match file {
-        Ok(file) => Some(serde_json::from_str(&file).unwrap()),
-        Err(e) => None,
-    }
 }
 
 impl eframe::App for CrabSplit {
@@ -262,7 +264,7 @@ impl eframe::App for CrabSplit {
             }
 
             // write tasks to file and close
-            record_today(&self.tasks)
+            self.record_today();
         }
 
         egui::CentralPanel::default().show(ctx, |ui| {
