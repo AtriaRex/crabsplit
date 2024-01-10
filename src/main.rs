@@ -256,6 +256,11 @@ impl eframe::App for CrabSplit {
         ctx.request_repaint();
 
         if ctx.input(|i| i.viewport().close_requested()) {
+            // if any task is running stop it.
+            if self.running {
+                self.stop();
+            }
+
             // write tasks to file and close
             record_today(&self.tasks)
         }
