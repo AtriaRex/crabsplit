@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 #[cfg(target_os = "linux")]
 const DEFAULT_PATH: &'static str = "/home/emre/crabsplit";
 #[cfg(target_os = "windows")]
-static DEFAULT_PATH: &'static str = "C:/Users/aliem";
+static DEFAULT_PATH: &'static str = "C:/Users/aliem/crabsplit";
 
 fn main() {
     let viewport_builder = ViewportBuilder::default()
@@ -146,6 +146,10 @@ impl CrabSplit {
         }
     }
 
+    fn remove_task(&mut self, index: usize) {
+        self.tasks.remove(index);
+    }
+
     fn next_task(&mut self) {
         self.current_task += 1;
     }
@@ -228,6 +232,7 @@ fn record_today(tasks: &Vec<Task>) {
     let mut file = OpenOptions::new()
         .create(true)
         .write(true)
+        .truncate(true)
         .open(format!("{DEFAULT_PATH}/{filename}"))
         .unwrap();
 
@@ -262,15 +267,31 @@ impl eframe::App for CrabSplit {
             ));
 
             ui.vertical(|ui| {
+                let mut task_to_remove: Option<usize> = None;
+
                 for (idx, task) in self.tasks.iter().enumerate() {
                     let task_duration = Self::calculate_task_elapsed(task);
                     let text = format!("{} - {}", task.name, format_duration(&task_duration));
 
                     if idx == self.current_task {
-                        ui.label(RichText::new(text).color(Color32::from_rgb(0, 255, 0)));
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new(text).color(Color32::from_rgb(0, 255, 0)));
+                            if ui.button("X").clicked() {
+                                task_to_remove = Some(idx);
+                            }
+                        });
                     } else {
-                        ui.label(RichText::new(text).color(Color32::from_rgb(255, 255, 255)));
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new(text).color(Color32::from_rgb(255, 255, 255)));
+                            if ui.button("X").clicked() {
+                                task_to_remove = Some(idx);
+                            }
+                        });
                     }
+                }
+
+                if let Some(task_to_remove) = task_to_remove {
+                    self.remove_task(task_to_remove);
                 }
             });
 
