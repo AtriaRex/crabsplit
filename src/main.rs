@@ -191,7 +191,12 @@ impl CrabSplit {
             total += elapsed;
         }
 
-        total
+        Self::truncate_duration(total)
+    }
+
+    fn truncate_duration(duration: Duration) -> Duration {
+        let seconds = duration.as_secs();
+        Duration::from_secs(seconds)
     }
 
     fn calculate_total_elapsed(&self) -> Duration {
