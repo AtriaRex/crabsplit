@@ -2,20 +2,20 @@
 
 use std::{
     fmt::Display,
-    fs::{self, File, OpenOptions},
-    str::FromStr,
+    fs::{self, OpenOptions},
     time::{Duration, SystemTime},
 };
 
+use chrono_tz::{Europe::Istanbul, Tz};
+
 use std::io::Write;
 
-use chrono::{Date, DateTime, Datelike, TimeZone, Timelike, Utc};
+use chrono::{DateTime, Datelike, Timelike, Utc};
 use eframe::{
     egui::{self, Button, RichText, ViewportBuilder},
     epaint::Color32,
 };
 use serde::{Deserialize, Serialize};
-use tzfile::RcTz;
 
 #[cfg(target_os = "linux")]
 const DEFAULT_PATH: &'static str = "/home/emre/crabsplit";
@@ -48,16 +48,15 @@ struct TaskProgress {
     pub end: SystemTime,
 }
 
-fn to_datetime(system_time: SystemTime) -> DateTime<RcTz> {
+fn to_datetime(system_time: SystemTime) -> DateTime<Tz> {
     let timestamp = system_time
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap()
         .as_secs();
 
-    let tz: RcTz = RcTz::named("Europe/Istanbul").unwrap();
     let datetime = DateTime::from_timestamp(timestamp.try_into().unwrap(), 0)
         .unwrap()
-        .with_timezone(&tz);
+        .with_timezone(&Istanbul);
 
     datetime
 }
@@ -206,9 +205,17 @@ impl CrabSplit {
     }
 }
 
+fn format_duration(duration: &Duration) -> String {
+    let total_seconds = duration.as_secs();
+
+    let full_minutes = total_seconds / 60;
+    let seconds = total_seconds % 60;
+
+    format!("{}:{}", full_minutes, seconds)
+}
+
 fn record_today(tasks: &Vec<Task>) {
-    let tz: RcTz = RcTz::named("Europe/Istanbul").unwrap();
-    let today = Utc::now().with_timezone(&tz);
+    let today = Utc::now().with_timezone(&Istanbul);
     let filename = format!("{}-{}-{}", today.day(), today.month(), today.year());
 
     let tasks_str = serde_json::to_string(tasks).unwrap();
@@ -223,8 +230,7 @@ fn record_today(tasks: &Vec<Task>) {
 }
 
 fn read_today() -> Option<Vec<Task>> {
-    let tz: RcTz = RcTz::named("Europe/Istanbul").unwrap();
-    let today = Utc::now().with_timezone(&tz);
+    let today = Utc::now().with_timezone(&Istanbul);
     let filename = format!("{}-{}-{}", today.day(), today.month(), today.year());
 
     let file = fs::read_to_string(format!("{DEFAULT_PATH}/{filename}"));
@@ -245,12 +251,15 @@ impl eframe::App for CrabSplit {
         }
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.label(format!("{:?}", self.calculate_total_elapsed()));
+            ui.label(format!(
+                "{}",
+                format_duration(&self.calculate_total_elapsed())
+            ));
 
             ui.vertical(|ui| {
                 for (idx, task) in self.tasks.iter().enumerate() {
                     let task_duration = Self::calculate_task_elapsed(task);
-                    let text = format!("{} - {:?}", task.name, task_duration);
+                    let text = format!("{} - {}", task.name, format_duration(&task_duration));
 
                     if idx == self.current_task {
                         ui.label(RichText::new(text).color(Color32::from_rgb(0, 255, 0)));
