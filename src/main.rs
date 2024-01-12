@@ -255,7 +255,7 @@ fn format_duration(duration: &Duration) -> String {
 
 impl eframe::App for CrabSplit {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        ctx.request_repaint();
+        ctx.request_repaint_after(Duration::new(1, 0));
 
         if ctx.input(|i| i.viewport().close_requested()) {
             // if any task is running stop it.
