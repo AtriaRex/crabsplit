@@ -282,14 +282,14 @@ impl eframe::App for CrabSplit {
 
                     if idx == self.current_task {
                         if self.running {
-                            ui.horizontal(|ui| {
+                            ui.horizontal_wrapped(|ui| {
                                 ui.label(RichText::new(text).color(Color32::from_rgb(255, 0, 0)));
                                 if ui.button("X").clicked() {
                                     task_to_remove = Some(idx);
                                 }
                             });
                         } else {
-                            ui.horizontal(|ui| {
+                            ui.horizontal_wrapped(|ui| {
                                 ui.label(RichText::new(text).color(Color32::from_rgb(0, 255, 0)));
                                 if ui.button("X").clicked() {
                                     task_to_remove = Some(idx);
@@ -297,7 +297,7 @@ impl eframe::App for CrabSplit {
                             });
                         }
                     } else {
-                        ui.horizontal(|ui| {
+                        ui.horizontal_wrapped(|ui| {
                             ui.label(RichText::new(text).color(Color32::from_rgb(255, 255, 255)));
                             if ui.button("X").clicked() {
                                 task_to_remove = Some(idx);
