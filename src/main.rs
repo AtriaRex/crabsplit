@@ -3,6 +3,7 @@
 use std::{
     fmt::Display,
     fs::{self, OpenOptions},
+    thread,
     time::{Duration, SystemTime},
 };
 
@@ -121,6 +122,12 @@ impl CrabSplit {
         // Restore app state using cc.storage (requires the "persistence" feature).
         // Use the cc.gl (a glow::Context) to create graphics shaders and buffers that you can use
         // for e.g. egui::PaintCallback.
+
+        let repainter = cc.egui_ctx.clone();
+        thread::spawn(move || loop {
+            std::thread::sleep(Duration::new(1, 0));
+            repainter.request_repaint();
+        });
 
         if let Some(tasks) = tasks {
             Self {
@@ -255,8 +262,6 @@ fn format_duration(duration: &Duration) -> String {
 
 impl eframe::App for CrabSplit {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        ctx.request_repaint_after(Duration::new(1, 0));
-
         if ctx.input(|i| i.viewport().close_requested()) {
             // if any task is running stop it.
             if self.running {
@@ -265,6 +270,10 @@ impl eframe::App for CrabSplit {
 
             // write tasks to file and close
             self.record_today();
+        }
+
+        if ctx.input(|i| i.key_pressed(egui::Key::Enter)) {
+            self.add_task();
         }
 
         egui::CentralPanel::default().show(ctx, |ui| {
