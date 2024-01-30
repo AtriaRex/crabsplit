@@ -131,7 +131,7 @@ impl CrabSplit {
 
         if let Some(tasks) = tasks {
             Self {
-                current_task: tasks.len() - 1,
+                current_task: 0,
                 task_name: "".to_string(),
                 running: false,
                 tasks,
