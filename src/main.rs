@@ -17,13 +17,14 @@ use eframe::{
     epaint::Color32,
 };
 use serde::{Deserialize, Serialize};
+use std::path::{PathBuf, Path};
 
-#[cfg(target_os = "linux")]
-const DEFAULT_PATH: &'static str = "/home/emre/crabsplit";
-#[cfg(target_os = "windows")]
-static DEFAULT_PATH: &'static str = "C:/Users/aliem/crabsplit";
 
 fn main() {
+    let home_dir = std::env::var("HOME").unwrap();
+    let home_dir = Path::new(&home_dir);
+    let crabsplit_dir = home_dir.join("crabsplit");
+    
     let viewport_builder = ViewportBuilder::default()
         .with_resizable(false)
         .with_inner_size((300.0, 400.0))
@@ -36,12 +37,12 @@ fn main() {
 
     let today = Utc::now().with_timezone(&Istanbul);
     let filename = format!("{}-{}-{}", today.day(), today.month(), today.year());
-    let tasks = read_today(&filename);
+    let tasks = read_today(&filename, &crabsplit_dir);
 
     eframe::run_native(
         "CrabSplit",
         native_options,
-        Box::new(|cc| Box::new(CrabSplit::new(cc, tasks, filename))),
+        Box::new(|cc| Box::new(CrabSplit::new(cc, tasks, filename, crabsplit_dir))),
     )
     .unwrap();
 }
@@ -114,10 +115,11 @@ struct CrabSplit {
     tasks: Vec<Task>,
     running: bool,
     filename: String,
+    dir: PathBuf,
 }
 
 impl CrabSplit {
-    fn new(cc: &eframe::CreationContext<'_>, tasks: Option<Vec<Task>>, filename: String) -> Self {
+    fn new(cc: &eframe::CreationContext<'_>, tasks: Option<Vec<Task>>, filename: String, dir: PathBuf) -> Self {
         // Customize egui here with cc.egui_ctx.set_fonts and cc.egui_ctx.set_visuals.
         // Restore app state using cc.storage (requires the "persistence" feature).
         // Use the cc.gl (a glow::Context) to create graphics shaders and buffers that you can use
@@ -136,6 +138,7 @@ impl CrabSplit {
                 running: false,
                 tasks,
                 filename,
+                dir,
             }
         } else {
             Self {
@@ -144,6 +147,7 @@ impl CrabSplit {
                 running: false,
                 tasks: Vec::with_capacity(10),
                 filename,
+                dir,
             }
         }
     }
@@ -235,15 +239,15 @@ impl CrabSplit {
             .create(true)
             .write(true)
             .truncate(true)
-            .open(format!("{DEFAULT_PATH}/{filename}"))
+            .open(format!("{}/{}", self.dir.to_str().unwrap(), filename))
             .unwrap();
 
         writeln!(file, "{}", tasks_str).unwrap();
     }
 }
 
-fn read_today(filename: &str) -> Option<Vec<Task>> {
-    let file = fs::read_to_string(format!("{DEFAULT_PATH}/{filename}"));
+fn read_today(filename: &str, dir: &PathBuf) -> Option<Vec<Task>> {
+    let file = fs::read_to_string(format!("{}/{}", dir.to_str().unwrap(), filename));
 
     match file {
         Ok(file) => Some(serde_json::from_str(&file).unwrap()),
