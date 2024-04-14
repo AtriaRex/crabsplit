@@ -88,7 +88,7 @@
             # In 'nix develop', we don't need a copy of the source tree
             # in the Nix store.
             src = ./.;
-            cargoHash = "sha256-RUmzL/3g+vocNAEG0EZj1d9XgKrD8E/sxihsuDYL/7U=";
+            cargoHash = "sha256-K0Cb1g0kuWWFpdUGelMT7zBnd9IXfQgq2nI7stuAE2Y=";
 
             buildInputs = with pkgs; [
               libxkbcommon
